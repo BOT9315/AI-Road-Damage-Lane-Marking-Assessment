@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.pyc
+models/*.pt
+models/runs/
+data/raw/images/*
+data/raw/annotations/*
+data/processed/
+outputs/predictions/
+outputs/eval_reports/
+.streamlit/
+.DS_Store
+Thumbs.db

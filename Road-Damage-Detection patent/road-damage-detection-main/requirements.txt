@@ -1,0 +1,26 @@
+# Core ML / CV
+ultralytics==8.3.28
+torch==2.4.1
+torchvision==0.19.1
+opencv-python==4.10.0.84
+numpy==1.26.4
+Pillow==10.4.0
+
+# Data handling
+pandas==2.2.3
+pyyaml==6.0.2
+scikit-learn==1.5.2
+albumentations==1.4.18
+
+# Visualization / metrics
+matplotlib==3.9.2
+seaborn==0.13.2
+
+# Web app (demo)
+streamlit==1.39.0
+streamlit-drawable-canvas==0.9.3
+
+# Utilities
+tqdm==4.66.5
+requests==2.32.3
+fpdf2==2.7.9

@@ -1,0 +1,20 @@
+# YOLO dataset descriptor file (used directly by ultralytics)
+# Point 'path' to the processed dataset root after running
+# src/dataset.py --prepare
+
+path: ../data/processed     # dataset root
+train: images/train
+val: images/val
+test: images/test
+
+# Number of classes
+nc: 6
+
+# Class names (must match config.yaml -> dataset.classes)
+names:
+  0: D00_longitudinal_crack
+  1: D10_transverse_crack
+  2: D20_alligator_crack
+  3: D40_pothole
+  4: D43_crosswalk_blur
+  5: D44_whiteline_blur

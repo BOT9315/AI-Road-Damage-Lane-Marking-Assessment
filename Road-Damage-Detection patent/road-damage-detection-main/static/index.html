@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Infrastructure Health Monitor — Road Distress & Lane Maintenance AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
+  <style>
+    /* White Base with Deep Animated Motion Tricolor Waves */
+    body {
+      background-color: #ffffff;
+      background-image: 
+        radial-gradient(circle at 15% 20%, rgba(204, 85, 0, 0.18) 0%, transparent 45%),
+        radial-gradient(circle at 85% 25%, rgba(0, 0, 128, 0.14) 0%, transparent 50%),
+        radial-gradient(circle at 50% 85%, rgba(10, 92, 5, 0.18) 0%, transparent 55%),
+        linear-gradient(135deg, rgba(204, 85, 0, 0.12) 0%, rgba(255, 255, 255, 0.85) 45%, rgba(10, 92, 5, 0.12) 100%);
+      background-size: 200% 200%;
+      animation: darkTricolorMotion 14s ease-in-out infinite alternate;
+      color: #0f172a;
+    }
+
+    @keyframes darkTricolorMotion {
+      0% { background-position: 0% 10%; }
+      50% { background-position: 100% 90%; }
+      100% { background-position: 10% 100%; }
+    }
+
+    /* Ambient Rotating Navy Ashoka Chakra Watermark */
+    .ashoka-watermark {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 650px;
+      height: 650px;
+      pointer-events: none;
+      opacity: 0.045;
+      z-index: 0;
+      animation: spinChakra 130s linear infinite;
+    }
+
+    @keyframes spinChakra {
+      100% { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+
+    #mapWrapper {
+      position: relative;
+      width: 100%;
+      height: 390px;
+      border-radius: 0.75rem;
+      overflow: hidden;
+      border: 1px solid #cbd5e1;
+    }
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+    .canvas-wrapper {
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+    }
+    #sourceImage {
+      display: block;
+      width: 100%;
+      max-height: 520px;
+      object-fit: contain;
+      border-radius: 0.75rem;
+    }
+    #overlayCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      border-radius: 0.75rem;
+    }
+    .rotator-ctrl {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .rot-btn {
+      background: rgba(15, 23, 42, 0.88);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 6px;
+      cursor: pointer;
+      backdrop-filter: blur(4px);
+      transition: all 0.2s ease;
+    }
+    .rot-btn:hover {
+      background: #000080;
+    }
+    .map-status-overlay {
+      position: absolute;
+      bottom: 12px;
+      left: 12px;
+      z-index: 1000;
+      background: rgba(15, 23, 42, 0.90);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      padding: 8px 12px;
+      backdrop-filter: blur(6px);
+      font-family: monospace;
+      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 190px;
+      color: #ffffff;
+    }
+    .nav-link.active {
+      color: #c2410c;
+      border-bottom: 2px solid #c2410c;
+    }
+
+    /* Indian Flag Tricolor Buttons */
+    .btn-saffron {
+      background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(234, 88, 12, 0.25);
+    }
+    .btn-saffron:hover {
+      background: linear-gradient(135deg, #f97316 0%, #9a3412 100%);
+    }
+
+    .btn-chakra {
+      background: linear-gradient(135deg, #000080 0%, #1e3a8a 100%);
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(0, 0, 128, 0.25);
+    }
+    .btn-chakra:hover {
+      background: linear-gradient(135deg, #0f172a 0%, #172554 100%);
+    }
+
+    .btn-green {
+      background: linear-gradient(135deg, #15803d 0%, #166534 100%);
+      color: #ffffff;
+      box-shadow: 0 4px 14px rgba(21, 128, 61, 0.25);
+    }
+    .btn-green:hover {
+      background: linear-gradient(135deg, #16a34a 0%, #14532d 100%);
+    }
+  </style>
+</head>
+<body class="min-h-screen font-sans flex flex-col">
+
+  <!-- Navy Ashoka Chakra Watermark -->
+  <svg class="ashoka-watermark" viewBox="0 0 100 100" fill="none" stroke="#000080" stroke-width="1.2">
+    <circle cx="50" cy="50" r="44" />
+    <circle cx="50" cy="50" r="8" />
+    <g stroke-width="0.8">
+      <line x1="50" y1="50" x2="50" y2="6" /><line x1="50" y1="50" x2="50" y2="94" />
+      <line x1="50" y1="50" x2="6" y2="50" /><line x1="50" y1="50" x2="94" y2="50" />
+      <line x1="50" y1="50" x2="20.5" y2="20.5" /><line x1="50" y1="50" x2="79.5" y2="79.5" />
+      <line x1="50" y1="50" x2="20.5" y2="79.5" /><line x1="50" y1="50" x2="79.5" y2="20.5" />
+      <line x1="50" y1="50" x2="38.6" y2="7.5" /><line x1="50" y1="50" x2="61.4" y2="92.5" />
+      <line x1="50" y1="50" x2="61.4" y2="7.5" /><line x1="50" y1="50" x2="38.6" y2="92.5" />
+      <line x1="50" y1="50" x2="7.5" y2="38.6" /><line x1="50" y1="50" x2="92.5" y2="61.4" />
+      <line x1="50" y1="50" x2="7.5" y2="61.4" /><line x1="50" y1="50" x2="92.5" y2="38.6" />
+      <line x1="50" y1="50" x2="27.8" y2="12.9" /><line x1="50" y1="50" x2="72.2" y2="87.1" />
+      <line x1="50" y1="50" x2="72.2" y2="12.9" /><line x1="50" y1="50" x2="27.8" y2="87.1" />
+      <line x1="50" y1="50" x2="12.9" y2="27.8" /><line x1="50" y1="50" x2="87.1" y2="72.2" />
+      <line x1="50" y1="50" x2="12.9" y2="72.2" /><line x1="50" y1="50" x2="87.1" y2="27.8" />
+    </g>
+  </svg>
+
+  <!-- Top Navigation Bar -->
+  <header class="border-b border-slate-200 bg-white/85 sticky top-0 z-50 backdrop-blur-xl shadow-sm">
+    <div class="max-w-7xl mx-auto px-6 py-3.5 flex flex-wrap justify-between items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="p-2 rounded-lg shadow-md" style="background: linear-gradient(135deg, #ea580c 0%, #000080 50%, #15803d 100%);">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+        </div>
+        <div>
+          <span class="text-base font-bold tracking-wide block leading-tight text-slate-900">Infrastructure Health Monitor</span>
+          <span class="text-[10px] text-slate-500 font-mono tracking-wider font-semibold">AI ROAD & HIGHWAY ASSET SYSTEM • BHARAT</span>
+        </div>
+      </div>
+
+      <nav class="flex items-center gap-1 sm:gap-2">
+        <button onclick="switchTab('home')" id="tab-home" class="nav-link active px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-orange-700 transition-colors">Home</button>
+        <button onclick="switchTab('damage')" id="tab-damage" class="nav-link px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-orange-700 transition-colors">Check Road Damage</button>
+        <button onclick="switchTab('lane')" id="tab-lane" class="nav-link px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-orange-700 transition-colors">Lane Maintenance & Video</button>
+        <button onclick="switchTab('about')" id="tab-about" class="nav-link px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-orange-700 transition-colors">About</button>
+      </nav>
+
+      <div class="hidden lg:flex items-center gap-2.5">
+        <span id="gpsTelemetry" class="text-[11px] text-emerald-700 font-mono bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full font-semibold">GPS: Initializing...</span>
+        <span id="pciBadge" class="text-xs bg-slate-100 border border-slate-300 text-slate-800 px-3 py-1 rounded-full font-bold">PCI: --</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="flex-1 max-w-7xl mx-auto w-full p-6 relative z-10">
+
+    <!-- 1. HOME SECTION -->
+    <section id="section-home" class="space-y-8 animate-fadeIn">
+      <div class="relative overflow-hidden bg-white/85 border border-slate-200 rounded-3xl p-8 sm:p-12 shadow-xl backdrop-blur-md">
+        <div class="max-w-3xl space-y-4">
+          <span class="inline-block text-[11px] uppercase tracking-widest font-extrabold text-orange-700 bg-orange-50 border border-orange-200 px-3 py-1 rounded-full">
+            Autonomous Civil Infrastructure Audit AI
+          </span>
+          <h1 class="text-3xl sm:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
+            Dual-Stream Deep Learning & Dynamic IPM for Pavement Intelligence
+          </h1>
+          <p class="text-sm sm:text-base text-slate-600 leading-relaxed">
+            A real-time civil engineering system designed to bridge visual distress recognition with physical metric surface area computation (<span class="font-mono text-orange-600 font-bold">cm²</span>), depth distance projection, contractor accountability tracking, and photometric lane marking serviceability.
+          </p>
+          <div class="flex flex-wrap gap-3 pt-2">
+            <button onclick="switchTab('damage')" class="btn-saffron px-5 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center gap-2">
+              Launch Damage Inspector
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+            </button>
+            <button onclick="switchTab('lane')" class="btn-green px-5 py-2.5 text-xs font-bold rounded-xl transition-all flex items-center gap-2">
+              Audit Road & Contractor
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-white/85 border border-slate-200 rounded-2xl p-6 space-y-3 shadow-md backdrop-blur-md">
+          <div class="w-10 h-10 rounded-xl bg-orange-100 border border-orange-300 flex items-center justify-center text-orange-600">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+          </div>
+          <h2 class="text-lg font-bold text-slate-900">Why This Technology is Necessary</h2>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Conventional road maintenance relies on manual ocular inspections or multi-million-dollar Laser Profilometer vans that cannot scale across rural and semi-urban road networks. Potholes and progressive fatigue fractures go undetected until catastrophic pavement failure occurs, causing vehicular accidents, severe traffic bottlenecks, and exponential municipal rehabilitation costs.
+          </p>
+        </div>
+
+        <div class="bg-white/85 border border-slate-200 rounded-2xl p-6 space-y-3 shadow-md backdrop-blur-md">
+          <div class="w-10 h-10 rounded-xl bg-blue-100 border border-blue-300 flex items-center justify-center text-blue-700">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+          </div>
+          <h2 class="text-lg font-bold text-slate-900">Why It Is Available for Patent</h2>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            This invention combines three non-obvious engineering mechanisms:
+          </p>
+          <ul class="text-xs text-slate-700 space-y-1.5 list-disc list-inside">
+            <li><b>Dual-Stream Hybrid Extraction:</b> YOLO deep learning combined with dynamic multi-scale blackhat morphology for water-filled and reflective road cavities.</li>
+            <li><b>Real-Time Dynamic IPM Ground-Sampling:</b> Converts 2D camera pixels directly to metric units (cm² and distance) based on calibrated pitch and focal length without physical depth sensors.</li>
+            <li><b>Corridor Identity & Contractor Liability Linkage:</b> Bridges physical pavement distress metrics to municipal construction registries and defect liability periods.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. CHECK ROAD DAMAGE SECTION -->
+    <section id="section-damage" class="space-y-6 hidden animate-fadeIn">
+      
+      <!-- User Input Selector: Highway vs Local Road -->
+      <div class="bg-white/85 border border-slate-200 rounded-2xl p-5 shadow-lg space-y-4 backdrop-blur-md">
+        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+          <div>
+            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
+              Select Inspection Target & Road Registry Details
+            </h3>
+            <p class="text-xs text-slate-500 mt-0.5">Specify whether you are auditing a National/State Highway or a Local Urban Street.</p>
+          </div>
+
+          <!-- Type Buttons with Tricolor Accents -->
+          <div class="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200 w-fit">
+            <button id="typeHighwayBtn" type="button" class="btn-saffron px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm">
+              🛣️ Highway
+            </button>
+            <button id="typeLocalBtn" type="button" class="px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-600 hover:text-slate-900">
+              🏘️ Local Road
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+          <div>
+            <label id="roadNameLabel" class="block text-xs font-semibold text-slate-700 mb-1">Highway Name / Number</label>
+            <input id="inputRoadName" type="text" placeholder="e.g. NH-44, NH-48, Yamuna Expressway" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-orange-500 font-medium placeholder-slate-400" value="NH-44" />
+          </div>
+          <div>
+            <label id="roadSectionLabel" class="block text-xs font-semibold text-slate-700 mb-1">Section / Chainage / Landmark</label>
+            <input id="inputRoadSection" type="text" placeholder="e.g. Km 140 to 148, Near Toll Plaza" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-orange-500 font-medium placeholder-slate-400" value="Km 142 Sector" />
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI Row -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-white/85 border border-slate-200 p-4 rounded-xl shadow-md backdrop-blur-md">
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Potholes Detected</p>
+          <p id="statPotholes" class="text-3xl font-extrabold text-red-600 mt-1">0</p>
+        </div>
+        <div class="bg-white/85 border border-slate-200 p-4 rounded-xl shadow-md backdrop-blur-md">
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pavement Cracks</p>
+          <p id="statCracks" class="text-3xl font-extrabold text-amber-600 mt-1">0</p>
+        </div>
+        <div class="bg-white/85 border border-slate-200 p-4 rounded-xl shadow-md backdrop-blur-md">
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Degraded Markings</p>
+          <p id="statLanes" class="text-3xl font-extrabold text-cyan-600 mt-1">0</p>
+        </div>
+        <div class="bg-white/85 border border-slate-200 p-4 rounded-xl shadow-md backdrop-blur-md">
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Inference Latency</p>
+          <p id="statLatency" class="text-3xl font-extrabold text-indigo-700 mt-1">--</p>
+        </div>
+      </div>
+
+      <!-- Inspector + Map Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 bg-white/85 border border-slate-200 rounded-2xl p-6 flex flex-col items-center justify-center min-h-[500px] shadow-md backdrop-blur-md">
+          <div id="dropzone" class="w-full border-2 border-dashed border-orange-300 hover:border-orange-500 rounded-xl p-12 flex flex-col items-center justify-center cursor-pointer transition-all bg-orange-50/40">
+            <svg class="w-14 h-14 text-orange-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 0115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+            <p class="text-base font-semibold text-slate-800">Select or drag an inspection image</p>
+            <p id="uploadNote" class="text-xs text-slate-500 mt-1.5">Universal WebP/JFIF decoder & dynamic IPM enabled</p>
+            <input type="file" id="fileInput" class="hidden" accept="image/*" />
+          </div>
+
+          <div id="displayWrapper" class="hidden w-full flex flex-col items-center">
+            <div class="canvas-wrapper shadow-2xl border border-slate-200 w-full flex justify-center bg-slate-900 rounded-xl">
+              <img id="sourceImage" alt="Road Surface Inspection" />
+              <canvas id="overlayCanvas"></canvas>
+            </div>
+            <div class="flex items-center gap-3 mt-4">
+              <button id="reuploadBtn" class="btn-saffron px-4 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                Inspect Another Image
+              </button>
+              <button id="downloadPdfBtn" class="btn-chakra px-4 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-2 cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Download PDF Report
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-6">
+          <div class="bg-white/85 border border-slate-200 rounded-2xl p-5 shadow-lg backdrop-blur-md">
+            <div class="flex justify-between items-center mb-3">
+              <div>
+                <h2 class="text-sm font-bold uppercase tracking-wider text-slate-800">Hybrid Satellite Damage Map</h2>
+                <div class="flex items-center gap-2 mt-1">
+                  <span class="inline-flex items-center text-[10px] text-red-600 font-bold"><span class="w-2 h-2 rounded-full bg-red-600 mr-1"></span>Severe</span>
+                  <span class="inline-flex items-center text-[10px] text-amber-600 font-bold"><span class="w-2 h-2 rounded-full bg-amber-500 mr-1"></span>Moderate</span>
+                  <span class="inline-flex items-center text-[10px] text-cyan-600 font-bold"><span class="w-2 h-2 rounded-full bg-cyan-500 mr-1"></span>Nominal</span>
+                </div>
+              </div>
+              <span id="rotDisplay" class="text-[11px] font-mono text-slate-700 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded font-bold">0° N</span>
+            </div>
+
+            <div id="mapWrapper">
+              <div id="map"></div>
+              <div class="rotator-ctrl">
+                <button id="rotLeftBtn" class="rot-btn" title="Rotate Left 45°">↺ 45°</button>
+                <button id="rotRightBtn" class="rot-btn" title="Rotate Right 45°">↻ 45°</button>
+                <button id="rotResetBtn" class="rot-btn" title="Reset North">Reset North</button>
+                <button id="rotAutoBtn" class="btn-saffron rot-btn border-none" title="Toggle 360 Patrol Mode">▶ 360° Patrol</button>
+              </div>
+              
+              <div class="map-status-overlay">
+                <span class="text-slate-300 text-[10px] uppercase font-bold tracking-wider">Road Corridor Status</span>
+                <span id="mapDamageStatus" class="text-cyan-400 font-bold text-xs flex items-center gap-1.5">
+                  <span id="mapDamageDot" class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                  Nominal Highway
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white/85 border border-slate-200 rounded-2xl p-5 shadow-lg backdrop-blur-md">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-800 mb-3">Live Inspection Log</h2>
+            <ul id="logList" class="space-y-2 text-xs max-h-56 overflow-y-auto pr-1">
+              <li class="text-slate-500 italic">No defects analyzed yet.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. ROAD LANE MAINTENANCE SECTION (LIVE VIDEO & REGISTRY) -->
+    <section id="section-lane" class="space-y-6 hidden animate-fadeIn">
+      <div class="bg-white/85 border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6 backdrop-blur-md">
+        
+        <div class="flex flex-col lg:flex-row justify-between lg:items-center gap-4 border-b border-slate-200 pb-5">
+          <div>
+            <span class="text-[10px] uppercase tracking-widest font-mono text-orange-700 bg-orange-50 border border-orange-200 px-2.5 py-0.5 rounded-full font-bold">
+              Real-Time Video Lane Auditor
+            </span>
+            <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900 mt-2 flex items-center gap-2">
+              <svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+              Live Video Road Quality & Municipal Asset Inspector
+            </h2>
+            <p class="text-xs text-slate-600 mt-0.5">Stream dashcam video files or direct camera feeds to audit contractor records, construction dates, and surface integrity.</p>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <input type="file" id="videoFileInput" accept="video/*" class="hidden" />
+            <button id="uploadVideoBtn" class="btn-saffron px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 0115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+              Upload Video
+            </button>
+            <button id="webcamBtn" class="btn-green px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+              Live Camera
+            </button>
+          </div>
+        </div>
+
+        <!-- Video Player & Municipal Card Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div class="lg:col-span-7 bg-slate-900 rounded-2xl border border-slate-200 overflow-hidden relative flex flex-col items-center justify-center min-h-[380px]">
+            <video id="inspectionVideo" class="w-full h-auto max-h-[460px] object-contain hidden" playsinline muted loop></video>
+            <canvas id="videoHudCanvas" class="w-full h-auto max-h-[460px] object-contain hidden"></canvas>
+            
+            <div id="videoPlaceholder" class="p-8 text-center space-y-3">
+              <div class="w-16 h-16 rounded-2xl bg-orange-500/10 border border-orange-500/30 mx-auto flex items-center justify-center text-orange-400">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              </div>
+              <p class="text-sm font-semibold text-slate-200">No active video stream</p>
+              <p class="text-xs text-slate-400 max-w-sm">Upload a dashcam .mp4 video or start your live camera to view real-time lane condition and contractor tracking.</p>
+            </div>
+
+            <div id="videoHudBanner" class="absolute top-3 left-3 right-3 hidden flex justify-between items-center pointer-events-none z-10">
+              <span id="videoStatusPill" class="text-[10px] font-mono font-bold bg-slate-950/80 backdrop-blur-md border border-amber-500/40 text-amber-300 px-3 py-1 rounded-full shadow-lg">
+                ANALYZING: 0 FPS
+              </span>
+              <span id="videoConditionPill" class="text-[10px] font-bold bg-slate-950/80 backdrop-blur-md border border-emerald-500/40 text-emerald-400 px-3 py-1 rounded-full shadow-lg">
+                Condition: Nominal
+              </span>
+            </div>
+          </div>
+
+          <!-- Municipal Road Identity & Asset Card -->
+          <div class="lg:col-span-5 space-y-4">
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-md space-y-4">
+              <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-xl">🏛️</span>
+                  <div>
+                    <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Road Asset Identity</h3>
+                    <p id="roadIdTag" class="text-[10px] font-mono text-orange-600 font-bold">REGISTRY ID: LOC-SECTOR-01</p>
+                  </div>
+                </div>
+                <span id="roadWarrantyBadge" class="text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded">
+                  Warranty Active
+                </span>
+              </div>
+
+              <!-- Metadata Details Table -->
+              <div class="space-y-2.5 text-xs text-slate-700">
+                <div class="flex justify-between items-center py-1 border-b border-slate-100">
+                  <span class="text-slate-500">Corridor / Road Name:</span>
+                  <span id="roadNameVal" class="font-bold text-slate-900 text-right">National Highway 44 (NH-44)</span>
+                </div>
+                <div class="flex justify-between items-center py-1 border-b border-slate-100">
+                  <span class="text-slate-500">Constructed By (Contractor):</span>
+                  <span id="roadContractorVal" class="font-bold text-orange-700 text-right">Larsen & Toubro (L&T)</span>
+                </div>
+                <div class="flex justify-between items-center py-1 border-b border-slate-100">
+                  <span class="text-slate-500">Executing Authority:</span>
+                  <span id="roadAuthorityVal" class="font-medium text-slate-800 text-right">NHAI / MoRTH</span>
+                </div>
+                <div class="flex justify-between items-center py-1 border-b border-slate-100">
+                  <span class="text-slate-500">Construction Date:</span>
+                  <span id="roadConstDateVal" class="font-mono text-slate-800">14 March 2020</span>
+                </div>
+                <div class="flex justify-between items-center py-1 border-b border-slate-100">
+                  <span class="text-slate-500">Last Resurfaced:</span>
+                  <span id="roadResurfacedVal" class="font-mono text-slate-800">12 November 2023</span>
+                </div>
+                <div class="flex justify-between items-center py-1">
+                  <span class="text-slate-500">Asphalt Surface Mix:</span>
+                  <span id="roadAsphaltVal" class="font-mono text-slate-600">VG-40 Polymer Bituminous Concrete</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Live Condition Rating -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-md space-y-3">
+              <div class="flex justify-between items-center">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Live Surface Condition</span>
+                <span id="livePciVal" class="text-sm font-extrabold text-emerald-700 font-mono">PCI: 92/100</span>
+              </div>
+              <p id="liveConditionDesc" class="text-xs font-bold text-slate-800">Nominal Highway (Pavement & Markings Nominal)</p>
+              
+              <div class="space-y-2 pt-1">
+                <div class="flex justify-between text-[11px]">
+                  <span class="text-slate-500">Lane Marking Wear:</span>
+                  <span id="liveWearVal" class="font-mono font-bold text-cyan-700">14.2%</span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                  <div id="liveWearBar" class="bg-cyan-600 h-2 rounded-full transition-all duration-300" style="width: 14%"></div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- 4. ABOUT SECTION -->
+    <section id="section-about" class="space-y-8 hidden animate-fadeIn">
+      <div class="bg-white/85 border border-slate-200 rounded-3xl p-8 space-y-6 shadow-xl backdrop-blur-md">
+        <div>
+          <span class="text-[11px] uppercase tracking-widest font-extrabold text-orange-700 bg-orange-50 border border-orange-200 px-3 py-1 rounded-full">
+            Stakeholder Ecosystem
+          </span>
+          <h2 class="text-2xl sm:text-3xl font-bold text-slate-900 mt-3">Benefits & Target User Groups</h2>
+          <p class="text-sm text-slate-600 mt-1">Transforming reactive road repair into predictive, metric-driven infrastructure management.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
+          <div class="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-2">
+            <span class="text-2xl">🏛️</span>
+            <h3 class="text-base font-bold text-slate-900">Municipal & City Corporations</h3>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              Automates pothole surveying across ward districts without manual survey teams. Direct budget allocation based on certified physical <span class="font-mono text-orange-600 font-bold">cm²</span> asphalt volume estimates.
+            </p>
+          </div>
+
+          <div class="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-2">
+            <span class="text-2xl">🛣️</span>
+            <h3 class="text-base font-bold text-slate-900">National Highway Authorities (NHAI)</h3>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              Continuously audits high-speed corridors for structural transverse fissures and lane retroreflectivity wear, ensuring strict toll-road safety compliance.
+            </p>
+          </div>
+
+          <div class="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-2">
+            <span class="text-2xl">🏗️</span>
+            <h3 class="text-base font-bold text-slate-900">Civil Contractors & Auditing Firms</h3>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              Generates court-verifiable, timestamped PDF compliance audit reports with GPS and Pavement Condition Index (PCI) ratings to release defect liability deposits.
+            </p>
+          </div>
+
+          <div class="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-2">
+            <span class="text-2xl">🚗</span>
+            <h3 class="text-base font-bold text-slate-900">Fleet & Dashcam Operators</h3>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              Commercial delivery, bus, and taxi fleets can turn everyday vehicle cameras into passive crowdsourced road health scanners for smart city data monetization.
+            </p>
+          </div>
+
+          <div class="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-2">
+            <span class="text-2xl">🛡️</span>
+            <h3 class="text-base font-bold text-slate-900">Public Safety & Accident Prevention</h3>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              Drastically reduces two-wheeler skidding fatalities caused by invisible potholes and faded lane markings during poor-visibility or rainy weather.
+            </p>
+          </div>
+
+          <div class="bg-slate-50 border border-slate-200 p-5 rounded-2xl space-y-2">
+            <span class="text-2xl">💰</span>
+            <h3 class="text-base font-bold text-slate-900">70% Cost Reduction in Inspection</h3>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              Replaces high-cost LiDAR hardware setups with edge-compatible monocular cameras using mathematically derived Inverse Perspective Mapping.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    function switchTab(tabName) {
+      const tabs = ['home', 'damage', 'lane', 'about'];
+      tabs.forEach(t => {
+        const sec = document.getElementById(`section-${t}`);
+        const btn = document.getElementById(`tab-${t}`);
+        if (t === tabName) {
+          sec.classList.remove('hidden');
+          btn.classList.add('active');
+        } else {
+          sec.classList.add('hidden');
+          btn.classList.remove('active');
+        }
+      });
+      if (tabName === 'damage') {
+        setTimeout(() => map.invalidateSize(), 150);
+      }
+    }
+
+    let selectedRoadType = 'highway';
+    const typeHighwayBtn = document.getElementById('typeHighwayBtn');
+    const typeLocalBtn = document.getElementById('typeLocalBtn');
+    const roadNameLabel = document.getElementById('roadNameLabel');
+    const roadSectionLabel = document.getElementById('roadSectionLabel');
+    const inputRoadName = document.getElementById('inputRoadName');
+    const inputRoadSection = document.getElementById('inputRoadSection');
+
+    typeHighwayBtn.addEventListener('click', () => {
+      selectedRoadType = 'highway';
+      typeHighwayBtn.className = 'btn-saffron px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm';
+      typeLocalBtn.className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-600 hover:text-slate-900';
+      roadNameLabel.innerText = 'Highway Name / Number';
+      roadSectionLabel.innerText = 'Section / Chainage / Corridor';
+      inputRoadName.placeholder = 'e.g. NH-44, NH-48, Yamuna Expressway';
+      inputRoadName.value = 'NH-44';
+      inputRoadSection.placeholder = 'e.g. Km 140 to 148, Near Toll Plaza';
+      inputRoadSection.value = 'Km 142 Sector';
+    });
+
+    typeLocalBtn.addEventListener('click', () => {
+      selectedRoadType = 'local';
+      typeLocalBtn.className = 'btn-green px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm';
+      typeHighwayBtn.className = 'px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all text-slate-600 hover:text-slate-900';
+      roadNameLabel.innerText = 'Local Street Name / Landmark';
+      roadSectionLabel.innerText = 'Ward / Sector / City Address';
+      inputRoadName.placeholder = 'e.g. MG Road, Market Main Street, 100 Feet Road';
+      inputRoadName.value = 'Sector 14 Main Avenue';
+      inputRoadSection.placeholder = 'e.g. Ward 12, Urban Municipal Zone';
+      inputRoadSection.value = 'Urban Ward 8';
+    });
+
+    const fileInput = document.getElementById('fileInput');
+    const dropzone = document.getElementById('dropzone');
+    const sourceImage = document.getElementById('sourceImage');
+    const canvas = document.getElementById('overlayCanvas');
+    const ctx = canvas.getContext('2d');
+    const displayWrapper = document.getElementById('displayWrapper');
+    const logList = document.getElementById('logList');
+    const pciBadge = document.getElementById('pciBadge');
+    const reuploadBtn = document.getElementById('reuploadBtn');
+    const downloadPdfBtn = document.getElementById('downloadPdfBtn');
+    const gpsTelemetry = document.getElementById('gpsTelemetry');
+    const rotDisplay = document.getElementById('rotDisplay');
+    const mapDamageStatus = document.getElementById('mapDamageStatus');
+    const mapDamageDot = document.getElementById('mapDamageDot');
+
+    const videoFileInput = document.getElementById('videoFileInput');
+    const uploadVideoBtn = document.getElementById('uploadVideoBtn');
+    const webcamBtn = document.getElementById('webcamBtn');
+    const inspectionVideo = document.getElementById('inspectionVideo');
+    const videoHudCanvas = document.getElementById('videoHudCanvas');
+    const videoPlaceholder = document.getElementById('videoPlaceholder');
+    const videoHudBanner = document.getElementById('videoHudBanner');
+    const videoStatusPill = document.getElementById('videoStatusPill');
+    const videoConditionPill = document.getElementById('videoConditionPill');
+
+    const roadIdTag = document.getElementById('roadIdTag');
+    const roadWarrantyBadge = document.getElementById('roadWarrantyBadge');
+    const roadNameVal = document.getElementById('roadNameVal');
+    const roadContractorVal = document.getElementById('roadContractorVal');
+    const roadAuthorityVal = document.getElementById('roadAuthorityVal');
+    const roadConstDateVal = document.getElementById('roadConstDateVal');
+    const roadResurfacedVal = document.getElementById('roadResurfacedVal');
+    const roadAsphaltVal = document.getElementById('roadAsphaltVal');
+    const livePciVal = document.getElementById('livePciVal');
+    const liveConditionDesc = document.getElementById('liveConditionDesc');
+    const liveWearVal = document.getElementById('liveWearVal');
+    const liveWearBar = document.getElementById('liveWearBar');
+
+    let lastInspectionData = null;
+    let lastInspectedFile = null;
+
+    const satelliteBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: 'Esri Satellite'
+    });
+
+    const roadNetworkOverlay = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      opacity: 0.90
+    });
+
+    const map = L.map('map', {
+      rotate: true,
+      bearing: 0,
+      touchRotate: true,
+      zoomControl: false,
+      layers: [satelliteBase, roadNetworkOverlay]
+    }).setView([30.7333, 76.7794], 16);
+
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+    const roadsLayer = L.layerGroup().addTo(map);
+    const markersLayer = L.layerGroup().addTo(map);
+    let deviceAccuracyCircle = null;
+
+    let currentBearing = 0;
+    let autoRotateInterval = null;
+
+    function setBearing(deg) {
+      currentBearing = (deg % 360 + 360) % 360;
+      if (typeof map.setBearing === 'function') {
+        map.setBearing(currentBearing);
+      }
+      rotDisplay.innerText = `${Math.round(currentBearing)}° ${getCardinal(currentBearing)}`;
+    }
+
+    function getCardinal(angle) {
+      const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+      const index = Math.round(((angle %= 360) < 0 ? angle + 360 : angle) / 45) % 8;
+      return directions[index];
+    }
+
+    document.getElementById('rotLeftBtn').addEventListener('click', () => {
+      stopAutoRotate();
+      setBearing(currentBearing - 45);
+    });
+
+    document.getElementById('rotRightBtn').addEventListener('click', () => {
+      stopAutoRotate();
+      setBearing(currentBearing + 45);
+    });
+
+    document.getElementById('rotResetBtn').addEventListener('click', () => {
+      stopAutoRotate();
+      setBearing(0);
+    });
+
+    const rotAutoBtn = document.getElementById('rotAutoBtn');
+    rotAutoBtn.addEventListener('click', () => {
+      if (autoRotateInterval) {
+        stopAutoRotate();
+      } else {
+        rotAutoBtn.innerText = '⏸ Stop 360°';
+        rotAutoBtn.className = 'btn-green rot-btn border-none';
+        autoRotateInterval = setInterval(() => {
+          setBearing(currentBearing + 1);
+        }, 50);
+      }
+    });
+
+    function stopAutoRotate() {
+      if (autoRotateInterval) {
+        clearInterval(autoRotateInterval);
+        autoRotateInterval = null;
+        rotAutoBtn.innerText = '▶ 360° Patrol';
+        rotAutoBtn.className = 'btn-saffron rot-btn border-none';
+      }
+    }
+
+    let liveCoords = null;
+
+    async function resolveAccurateLocation() {
+      const geoPromise = new Promise((resolve) => {
+        if (!("geolocation" in navigator)) return resolve(null);
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+            source: 'Hardware GPS'
+          }),
+          () => resolve(null),
+          { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+        );
+      });
+
+      let loc = await geoPromise;
+
+      if (!loc) {
+        try {
+          const ipRes = await fetch('https://ipapi.co/json/');
+          if (ipRes.ok) {
+            const ipData = await ipRes.json();
+            if (ipData.latitude && ipData.longitude) {
+              loc = {
+                lat: parseFloat(ipData.latitude),
+                lng: parseFloat(ipData.longitude),
+                accuracy: 350,
+                source: `${ipData.city || 'Network'} IP`
+              };
+            }
+          }
+        } catch (e) {
+          console.warn("IP Geolocation fallback unavailable", e);
+        }
+      }
+
+      if (loc) {
+        liveCoords = loc;
+        gpsTelemetry.innerText = `GPS: ${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)} (${loc.source})`;
+        gpsTelemetry.className = "text-[11px] text-emerald-800 font-mono bg-emerald-50 border border-emerald-300 px-2.5 py-1 rounded-full font-bold";
+
+        map.invalidateSize();
+        map.setView([loc.lat, loc.lng], 16);
+
+        if (deviceAccuracyCircle) map.removeLayer(deviceAccuracyCircle);
+        deviceAccuracyCircle = L.circle([loc.lat, loc.lng], {
+          radius: Math.max(30, loc.accuracy || 30),
+          color: '#0284c7',
+          fillColor: '#38bdf8',
+          fillOpacity: 0.20,
+          weight: 2
+        }).addTo(map);
+
+        drawRoadDamageCorridor(loc.lat, loc.lng, 100, 0, 0);
+      } else {
+        gpsTelemetry.innerText = "GPS: Manual Fallback";
+        gpsTelemetry.className = "text-[11px] text-amber-800 font-mono bg-amber-50 border border-amber-300 px-2.5 py-1 rounded-full font-bold";
+      }
+      return loc;
+    }
+
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        map.invalidateSize();
+        resolveAccurateLocation();
+      }, 300);
+    });
+
+    dropzone.addEventListener('click', () => { fileInput.value = ''; fileInput.click(); });
+    reuploadBtn.addEventListener('click', () => { fileInput.value = ''; fileInput.click(); });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length > 0) processFile(e.target.files[0]);
+    });
+
+    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('border-orange-500'); });
+    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-orange-500'));
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('border-orange-500');
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        fileInput.value = '';
+        processFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    function resetUI() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      logList.innerHTML = '<li class="text-orange-700 p-2 bg-orange-50 border border-orange-200 rounded animate-pulse font-medium">Evaluating road distress & querying contractor records...</li>';
+      document.getElementById('statPotholes').innerText = '0';
+      document.getElementById('statCracks').innerText = '0';
+      document.getElementById('statLanes').innerText = '0';
+      document.getElementById('statLatency').innerText = '...';
+      pciBadge.innerText = 'PCI: Computing...';
+    }
+
+    async function processFile(file) {
+      if (!file) return;
+      lastInspectedFile = file;
+      resetUI();
+
+      if (!liveCoords) {
+        await resolveAccurateLocation();
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        sourceImage.src = e.target.result;
+        sourceImage.onload = () => {
+          dropzone.classList.add('hidden');
+          displayWrapper.classList.remove('hidden');
+          uploadToBackend(file);
+        };
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function uploadToBackend(file) {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('road_type', selectedRoadType);
+      formData.append('road_name', inputRoadName.value);
+      formData.append('road_section', inputRoadSection.value);
+
+      if (liveCoords) {
+        formData.append('lat', liveCoords.lat);
+        formData.append('lng', liveCoords.lng);
+      }
+
+      try {
+        const response = await fetch('/api/v1/inspect', { 
+          method: 'POST', 
+          body: formData,
+          cache: 'no-store'
+        });
+
+        if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+        const data = await response.json();
+        renderResults(data);
+      } catch (err) {
+        console.error('Inspection failed:', err);
+        logList.innerHTML = `<li class="text-red-600 p-2 bg-red-50 border border-red-200 rounded">Inference failed: ${err.message}</li>`;
+      }
+    }
+
+    function drawRoadDamageCorridor(centerLat, centerLng, pci, potholes, cracks) {
+      roadsLayer.clearLayers();
+
+      let roadColor = '#0284c7';
+      let roadStatusText = 'Nominal Condition';
+      let statusClass = 'text-cyan-400';
+      let dotColor = '#38bdf8';
+
+      if (potholes > 0 || pci < 55) {
+        roadColor = '#dc2626';
+        roadStatusText = 'Severe Road Damage (Potholes)';
+        statusClass = 'text-red-400';
+        dotColor = '#ef4444';
+      } else if (cracks > 0 || pci < 80) {
+        roadColor = '#d97706';
+        roadStatusText = 'Moderate Road Distress (Cracks)';
+        statusClass = 'text-amber-400';
+        dotColor = '#f59e0b';
+      }
+
+      mapDamageStatus.innerText = roadStatusText;
+      mapDamageStatus.className = `${statusClass} font-bold text-xs flex items-center gap-1.5`;
+      mapDamageDot.style.backgroundColor = dotColor;
+
+      const dLat = 0.0016;
+      const dLng = 0.0014;
+      const roadPath = [
+        [centerLat - dLat, centerLng - dLng],
+        [centerLat - (dLat * 0.3), centerLng - (dLng * 0.15)],
+        [centerLat, centerLng],
+        [centerLat + (dLat * 0.4), centerLng + (dLng * 0.25)],
+        [centerLat + dLat, centerLng + dLng]
+      ];
+
+      L.polyline(roadPath, { color: '#0f172a', weight: 12, opacity: 0.85, lineCap: 'round' }).addTo(roadsLayer);
+      L.polyline(roadPath, { color: roadColor, weight: 10, opacity: 0.45, lineCap: 'round' }).addTo(roadsLayer);
+      const coreLine = L.polyline(roadPath, { color: roadColor, weight: 5, opacity: 1.0, lineCap: 'round', dashArray: roadColor === '#0284c7' ? null : '10, 8' }).addTo(roadsLayer);
+
+      L.circle([centerLat, centerLng], { radius: 45, color: roadColor, fillColor: roadColor, fillOpacity: 0.25, weight: 2 }).addTo(roadsLayer);
+
+      coreLine.bindPopup(`
+        <div style="font-family:sans-serif; min-width:180px; background:#0f172a; color:#f8fafc; padding:8px; border-radius:8px; border:1px solid ${roadColor};">
+          <b style="color:${roadColor}; font-size:13px;">● ${roadStatusText}</b>
+          <div style="font-size:11px; color:#cbd5e1; margin-top:6px; line-height:1.5;">
+            <div>PCI Rating: <b>${pci}/100</b></div>
+            <div>Potholes: <b>${potholes}</b></div>
+            <div>Cracks: <b>${cracks}</b></div>
+          </div>
+        </div>
+      `);
+    }
+
+    function renderResults(data) {
+      lastInspectionData = data;
+
+      const displayW = sourceImage.clientWidth;
+      const displayH = sourceImage.clientHeight;
+      canvas.width = displayW;
+      canvas.height = displayH;
+
+      const scaleX = displayW / data.image_metadata.width;
+      const scaleY = displayH / data.image_metadata.height;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      logList.innerHTML = '';
+
+      let totalDetections = 0;
+
+      if (data.structural_detections && data.structural_detections.length > 0) {
+        data.structural_detections.forEach(d => {
+          totalDetections++;
+          const areaInfo = d.metrics ? ` | ${d.metrics.surface_area_cm2} cm²` : '';
+          const distInfo = d.metrics ? ` (~${d.metrics.estimated_distance_m}m)` : '';
+          drawScaledBox(d.bbox, scaleX, scaleY, '#dc2626', d.class_name, `${(d.confidence * 100).toFixed(0)}%`);
+          appendLog(d.class_name, `${(d.confidence * 100).toFixed(0)}% Conf${areaInfo}${distInfo}`, 'text-red-600');
+        });
+      }
+
+      if (data.lane_evaluations && data.lane_evaluations.length > 0) {
+        data.lane_evaluations.forEach(l => {
+          totalDetections++;
+          drawScaledBox(l.bbox, scaleX, scaleY, '#0284c7', l.class_name, `Wear: ${l.metrics.wear_percentage}%`);
+          appendLog(l.class_name, `Wear: ${l.metrics.wear_percentage}% | ${l.metrics.serviceability}`, 'text-cyan-700');
+        });
+      }
+
+      if (totalDetections === 0 && (!data.lane_evaluations || data.lane_evaluations.length === 0)) {
+        logList.innerHTML = '<li class="text-emerald-700 p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg font-medium">No severe road distress detected. Road surface is nominal.</li>';
+      }
+
+      document.getElementById('statPotholes').innerText = data.summary.potholes;
+      document.getElementById('statCracks').innerText = data.summary.cracks;
+      document.getElementById('statLanes').innerText = data.summary.lane_defects;
+      document.getElementById('statLatency').innerText = `${data.processing_time}s`;
+
+      const pci = data.summary.pci_index !== undefined ? data.summary.pci_index : 100;
+      pciBadge.innerText = `PCI: ${pci}/100`;
+      if (pci < 55) {
+        pciBadge.className = 'text-xs bg-red-100 text-red-700 border border-red-300 px-3 py-1 rounded-full font-bold';
+      } else if (pci < 80) {
+        pciBadge.className = 'text-xs bg-amber-100 text-amber-700 border border-amber-300 px-3 py-1 rounded-full font-bold';
+      } else {
+        pciBadge.className = 'text-xs bg-emerald-100 text-emerald-700 border border-emerald-300 px-3 py-1 rounded-full font-bold';
+      }
+
+      if (data.road_asset) {
+        const meta = data.road_asset;
+        roadIdTag.innerText = `REGISTRY ID: ${meta.road_id || 'NHAI-COR'}`;
+        roadWarrantyBadge.innerText = meta.warranty_status || 'Active Warranty';
+        roadNameVal.innerText = meta.name || 'Corridor';
+        roadContractorVal.innerText = meta.contractor || 'Public Works Contractor';
+        roadAuthorityVal.innerText = meta.authority || 'NHAI / Municipal Corp';
+        roadConstDateVal.innerText = meta.constructed_date || '2021';
+        roadResurfacedVal.innerText = meta.last_resurfaced || '2024';
+        roadAsphaltVal.innerText = meta.asphalt_mix || 'Bituminous Concrete';
+      }
+
+      if (data.location) {
+        const { lat, lng, source } = data.location;
+        map.invalidateSize();
+        map.setView([lat, lng], 17, { animate: true });
+
+        markersLayer.clearLayers();
+        drawRoadDamageCorridor(lat, lng, pci, data.summary.potholes, data.summary.cracks);
+
+        const markerColor = (data.summary.potholes > 0 || pci < 55) ? '#dc2626' : ((data.summary.cracks > 0 || pci < 80) ? '#d97706' : '#0284c7');
+        const markerHtml = `
+          <div style="position:relative;">
+            <div style="position:absolute; width:28px; height:28px; border-radius:50%; background:${markerColor}; opacity:0.35; animation: ping 1.5s cubic-bezier(0,0,0.2,1) infinite; top:-6px; left:-6px;"></div>
+            <div style="background:${markerColor}; width:16px; height:16px; border-radius:50%; border:2px solid #ffffff; box-shadow:0 0 10px ${markerColor};"></div>
+          </div>`;
+        const customIcon = L.divIcon({ html: markerHtml, className: '', iconSize: [16, 16], iconAnchor: [8, 8] });
+
+        const contractorText = data.road_asset ? data.road_asset.contractor : 'Civil Works Dept';
+        const popupContent = `
+          <div style="font-family:sans-serif; min-width:190px; padding:6px; background:#0f172a; color:#f8fafc; border-radius:6px; border:1px solid rgba(255,255,255,0.2);">
+            <p style="margin:0 0 2px 0; font-weight:700; font-size:13px; color:#f8fafc;">${data.road_asset?.name || 'Road Distress Point'}</p>
+            <p style="margin:0 0 6px 0; font-size:11px; color:#94a3b8;">Contractor: <b style="color:#ea580c;">${contractorText}</b></p>
+            <div style="font-size:11px; color:#cbd5e1; line-height:1.5;">
+              <div>• PCI: <b style="color:${markerColor}">${pci}/100</b></div>
+              <div>• Built: <b>${data.road_asset?.constructed_date || '2021'}</b></div>
+              <div>• Potholes: <b>${data.summary.potholes}</b> | Cracks: <b>${data.summary.cracks}</b></div>
+            </div>
+          </div>
+        `;
+
+        L.marker([lat, lng], { icon: customIcon }).addTo(markersLayer).bindPopup(popupContent).openPopup();
+      }
+    }
+
+    function drawScaledBox(bbox, sx, sy, color, label, meta) {
+      const x1 = bbox[0] * sx;
+      const y1 = bbox[1] * sy;
+      const w = (bbox[2] - bbox[0]) * sx;
+      const h = (bbox[3] - bbox[1]) * sy;
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(x1, y1, w, h);
+
+      const fontSize = 11;
+      ctx.font = `bold ${fontSize}px sans-serif`;
+      const text = `${label} [${meta}]`;
+      const textWidth = ctx.measureText(text).width;
+      const headerHeight = fontSize + 6;
+
+      ctx.fillStyle = color;
+      ctx.fillRect(x1, Math.max(0, y1 - headerHeight), textWidth + 8, headerHeight);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(text, x1 + 4, Math.max(fontSize, y1 - 4));
+    }
+
+    function appendLog(title, desc, colorClass) {
+      const li = document.createElement('li');
+      li.className = 'p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex justify-between items-center text-slate-800';
+      li.innerHTML = `<span class="font-semibold text-slate-800">${title}</span> <span class="font-bold ${colorClass}">${desc}</span>`;
+      logList.appendChild(li);
+    }
+
+    // Video Processing Setup
+    let videoInterval = null;
+    let isWebcamActive = false;
+
+    uploadVideoBtn.addEventListener('click', () => {
+      videoFileInput.value = '';
+      videoFileInput.click();
+    });
+
+    videoFileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        stopWebcam();
+        const file = e.target.files[0];
+        inspectionVideo.src = URL.createObjectURL(file);
+        startVideoProcessing();
+      }
+    });
+
+    webcamBtn.addEventListener('click', async () => {
+      if (isWebcamActive) {
+        stopWebcam();
+      } else {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+          inspectionVideo.srcObject = stream;
+          isWebcamActive = true;
+          webcamBtn.innerText = "Stop Camera";
+          webcamBtn.className = "px-4 py-2 bg-red-600 hover:bg-red-700 text-xs font-bold rounded-xl transition-all text-white flex items-center gap-2 cursor-pointer";
+          startVideoProcessing();
+        } catch (err) {
+          alert("Camera access denied or unavailable: " + err.message);
+        }
+      }
+    });
+
+    function stopWebcam() {
+      if (inspectionVideo.srcObject) {
+        inspectionVideo.srcObject.getTracks().forEach(t => t.stop());
+        inspectionVideo.srcObject = null;
+      }
+      isWebcamActive = false;
+      webcamBtn.innerText = "Live Camera";
+      webcamBtn.className = "btn-green px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer";
+    }
+
+    function startVideoProcessing() {
+      videoPlaceholder.classList.add('hidden');
+      inspectionVideo.classList.remove('hidden');
+      videoHudCanvas.classList.remove('hidden');
+      videoHudBanner.classList.remove('hidden');
+
+      inspectionVideo.play();
+      if (videoInterval) clearInterval(videoInterval);
+      videoInterval = setInterval(captureAndSendFrame, 350);
+    }
+
+    async function captureAndSendFrame() {
+      if (inspectionVideo.paused || inspectionVideo.ended || inspectionVideo.videoWidth === 0) return;
+
+      const hiddenCanvas = document.createElement('canvas');
+      hiddenCanvas.width = inspectionVideo.videoWidth;
+      hiddenCanvas.height = inspectionVideo.videoHeight;
+      const hctx = hiddenCanvas.getContext('2d');
+      hctx.drawImage(inspectionVideo, 0, 0, hiddenCanvas.width, hiddenCanvas.height);
+
+      hiddenCanvas.toBlob(async (blob) => {
+        if (!blob) return;
+
+        const formData = new FormData();
+        formData.append('frame', blob, 'frame.jpg');
+        formData.append('road_type', selectedRoadType);
+        formData.append('road_name', inputRoadName.value);
+        formData.append('road_section', inputRoadSection.value);
+
+        if (liveCoords) {
+          formData.append('lat', liveCoords.lat);
+          formData.append('lng', liveCoords.lng);
+        }
+
+        try {
+          const res = await fetch('/api/v1/inspect-video-frame', { method: 'POST', body: formData });
+          if (!res.ok) return;
+          const data = await res.json();
+          updateLiveVideoHUD(data);
+        } catch (e) {
+          console.warn("Video frame sync skipped:", e);
+        }
+      }, 'image/jpeg', 0.65);
+    }
+
+    function updateLiveVideoHUD(data) {
+      if (!data.success) return;
+
+      videoStatusPill.innerText = `PROCESSING LIVE (PCI: ${data.pci_index})`;
+      videoConditionPill.innerText = `Condition: ${data.pci_index > 75 ? 'Nominal' : (data.pci_index > 50 ? 'Moderate' : 'Severe')}`;
+      videoConditionPill.className = data.pci_index > 75 ? 'text-[10px] font-bold bg-slate-950/80 backdrop-blur-md border border-emerald-500/40 text-emerald-400 px-3 py-1 rounded-full' : (data.pci_index > 50 ? 'text-[10px] font-bold bg-slate-950/80 backdrop-blur-md border border-amber-500/40 text-amber-300 px-3 py-1 rounded-full' : 'text-[10px] font-bold bg-slate-950/80 backdrop-blur-md border border-red-500/40 text-red-400 px-3 py-1 rounded-full');
+
+      if (data.road_asset) {
+        const meta = data.road_asset;
+        roadIdTag.innerText = `REGISTRY ID: ${meta.road_id || 'NH-COR-44'}`;
+        roadWarrantyBadge.innerText = meta.warranty_status || 'Active Warranty';
+        roadNameVal.innerText = meta.name || 'Corridor';
+        roadContractorVal.innerText = meta.contractor || 'Public Works Dept';
+        roadAuthorityVal.innerText = meta.authority || 'NHAI';
+        roadConstDateVal.innerText = meta.constructed_date || '2021';
+        roadResurfacedVal.innerText = meta.last_resurfaced || '2024';
+        roadAsphaltVal.innerText = meta.asphalt_mix || 'Bituminous Concrete';
+      }
+
+      livePciVal.innerText = `PCI: ${data.pci_index}/100`;
+      liveConditionDesc.innerText = data.condition;
+      liveWearVal.innerText = `${data.wear_percentage}%`;
+      liveWearBar.style.width = `${Math.min(100, data.wear_percentage)}%`;
+      liveWearBar.className = data.wear_percentage > 50 ? 'bg-red-500 h-2 rounded-full' : (data.wear_percentage > 30 ? 'bg-amber-400 h-2 rounded-full' : 'bg-cyan-500 h-2 rounded-full');
+    }
+
+    downloadPdfBtn.addEventListener('click', async () => {
+      if (!lastInspectionData) {
+        alert("Please run an inspection on an image first.");
+        return;
+      }
+
+      downloadPdfBtn.innerText = "Exporting PDF...";
+      downloadPdfBtn.classList.add("animate-pulse");
+
+      const formData = new FormData();
+      formData.append('data', JSON.stringify(lastInspectionData));
+      if (lastInspectedFile) {
+        formData.append('image', lastInspectedFile);
+      }
+
+      try {
+        const res = await fetch('/api/v1/export-report', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (!res.ok) throw new Error(`Export failed with HTTP ${res.status}`);
+
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Road_Damage_Report_${Date.now()}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+      } catch (err) {
+        alert("Could not generate report: " + err.message);
+      } finally {
+        downloadPdfBtn.innerHTML = `
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+          Download PDF Report
+        `;
+        downloadPdfBtn.classList.remove("animate-pulse");
+      }
+    });
+  </script>
+</body>
+</html>
